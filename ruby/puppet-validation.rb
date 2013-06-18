@@ -10,6 +10,7 @@
 #
 #  vim:ts=4:sw=4:et
 
+
 $LOAD_PATH << File.dirname(__FILE__)
 require 'optparse'
 require 'modules/logging.rb'
