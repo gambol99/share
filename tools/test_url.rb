@@ -1,5 +1,6 @@
 #!/usr/bin/ruby
-#
+# 
+# desc: a simple script used to poll a http url
 #
 
 require 'rubygems'
@@ -18,49 +19,51 @@ class URLChecker
 
     include HTTParty
     #debug_output $stderr
-
-    @options = nil
-        @count   = 0
+    attr_reader :options, :counter, :stats    
 
     def initialize( options )
 
         raise ArgumentError, "you haven't passed any options" unless options
         @options = options
+        @counter = 0
         @count   = @options[:count]
+        @stats   = {
+            :requests => 0, 
+            :success  => 0, 
+            :total    => 0, 
+            :avg      => 0, 
+            :min      => 1000000, 
+            :max      => 0, 
+            :timeouts => 0 
+        }
+        @url_length = @options[:url].length + 2
 
     end
 
     def process
 
-        stats = { :requests => 0, :success => 0, :total => 0, :avg => 0, :min => 1000000, :max => 0, :timeouts => 0 }
         begin
                 
-            counter = 0     
-            url_length = @options[:url].length + 2
-            while counter < @options[:count] or @options[:count] == 0 
+            
+            while @counter < @options[:count] or @options[:count] == 0 
                                 
                 begin
 
-                    start = Time.now
-                    stats[:requests] += 1
+                    @stats[:requests] += 1
+                    start    = Time.now
                     response = self.class.get( @options[:url], { :timeout => @options[:timeout] } )
-                    stats[:success]  += 1
-                    endtime = Time.now
-                    print "%-4d %-14s %#{url_length}s %6.2fms %4d\n" % [ counter, Time.now.strftime("%H:%M:%S.%L"), @options[:url], ( ( endtime - start ) * 1000 ), response.code ]
-                    response_time    = ( endtime - start ) * 1000
-                    stats[:min]      = response_time if response_time < stats[:min]
-                    stats[:max]      = response_time if response_time > stats[:max]
-                    stats[:total]    += response_time 
-
+                    endtime  = Time.now
+                    time_ms  = ( endtime - start ) * 1000
+                    update_status( time_ms, response, true )
+        
                 rescue Timeout::Error => e
 
-                    stats[:timeouts] += 1
-                    print "%-4d %-14s %-#{url_length}s the request timed out\n" % [ counter, Time.now.strftime("%H:%M:%S.%L"), @options[:url] ]
+                    update_status( 0.0, nil, false )
 
                 end
 
                 sleep( @options[:interval] )
-                counter += 1
+                @counter += 1
 
             end
  
@@ -71,9 +74,35 @@ class URLChecker
         rescue Exception => e
 
             puts "process: threw an exception: #{e.message}" 
+            raise
             
         end
-        self.print_statistics( stats )
+        self.print_statistics( @stats )
+
+    end
+
+    def update_status( response_time_ms = 0.0, response = nil, success = true )
+
+        length = @url_length
+        status = "%-4d %-14s %#{length}s " % [ @counter, Time.now.strftime("%H:%M:%S.%L"), @options[:url] ]
+        if success == false
+            status << "the request timed out"
+            @stats[:timeouts] += 1
+        else
+            status << "%6.2fms %4s" % [ response_time_ms, response.code ]
+            if @options[:show]
+                if response.body.length <= 32 
+                    status << " %10s: %-32s\n"   % [ "output", response.body.chomp ]
+                else
+                    status << "\noutput:\n%s\n" % [ response.body.chomp ]
+                end
+            end
+            puts status
+            @stats[:success]  += 1
+            @stats[:min]      = response_time_ms if response_time_ms < @stats[:min]
+            @stats[:max]      = response_time_ms if response_time_ms > @stats[:max]
+            @stats[:total]    += response_time_ms 
+        end
 
     end
 
@@ -118,5 +147,15 @@ mopt = lambda { |msg|
 mopt.call "you have not specified a url to call" unless options[:url]
 mopt.call "the timeout must numeric" unless options[:timeout].is_a?( Integer) or options[:timeout] > 1
 
-checker = URLChecker::new( options )
-checker.process
+begin
+
+    checker = URLChecker::new( options )
+    checker.process
+
+rescue Exception => e
+
+    puts "an exception was thrown, error: #{e.message}"
+    exit 1
+
+end
+
