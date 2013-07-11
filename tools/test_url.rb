@@ -97,12 +97,12 @@ class URLChecker
                     status << "\noutput:\n%s\n" % [ response.body.chomp ]
                 end
             end
-            puts status
             @stats[:success]  += 1
             @stats[:min]      = response_time_ms if response_time_ms < @stats[:min]
             @stats[:max]      = response_time_ms if response_time_ms > @stats[:max]
             @stats[:total]    += response_time_ms 
         end
+        puts status
 
     end
 
