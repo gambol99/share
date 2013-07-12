@@ -1,6 +1,7 @@
 #!/usr/bin/ruby
 #
-#
+# desc: the flock command is a generic handler used to run a set of commands under a atomic lock file
+# 
 
 require 'rubygems'
 require 'optparse'
